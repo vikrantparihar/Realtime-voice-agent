@@ -1,0 +1,82 @@
+from fastapi import WebSocket
+
+from memory.session_store import (
+    create_session,
+    get_session,
+    update_slot,
+    add_history
+)
+
+from orchestrator.state_machine import (
+    get_current_question,
+    move_next
+)
+
+from llm.extractor import extract_slots
+from stt.deepgram_client import transcribe_audio
+from tts.elevenlabs_client import generate_speech
+
+
+async def handle_voice(websocket: WebSocket):
+
+    await websocket.accept()
+
+    session_id = "voice-user"
+
+    create_session(session_id)
+
+    session = get_session(session_id)
+
+    first_question = get_current_question(session)
+
+    audio = generate_speech(first_question["question"])
+
+    await websocket.send_bytes(audio)
+
+    while True:
+
+        audio_bytes = await websocket.receive_bytes()
+
+        transcript = transcribe_audio(audio_bytes)
+
+        add_history(session_id, "user", transcript)
+
+        extracted = extract_slots(transcript)
+
+        for key, value in extracted.items():
+            update_slot(session_id, key, value)
+
+        current_question = get_current_question(session)
+
+        if current_question is None:
+            final_audio = generate_speech(
+                "Verification completed successfully"
+            )
+
+            await websocket.send_bytes(final_audio)
+            break
+
+        current_slot = current_question["slot"]
+
+        if session["slots"][current_slot]:
+            move_next(session)
+
+        while True:
+
+            next_question = get_current_question(session)
+
+            if next_question is None:
+                break
+
+            next_slot = next_question["slot"]
+
+            if session["slots"][next_slot]:
+                move_next(session)
+            else:
+                break
+
+        next_question = get_current_question(session)
+
+        if next_question is None:
+            final_audio = generate_speech(
+        

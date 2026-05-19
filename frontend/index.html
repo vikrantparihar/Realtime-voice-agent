@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Realtime Voice Agent</title>
+</head>
+
+<body>
+
+    <h1>Realtime Voice Agent</h1>
+
+    <button onclick="connectWS()">
+        Connect
+    </button>
+
+    <button onclick="startMic()">
+        Start Mic
+    </button>
+
+    <p id="status">
+        Disconnected
+    </p>
+
+    <script>
+
+        let socket;
+
+        let currentSpeech = null;
+
+
+        async function connectWS() {
+
+            socket = new WebSocket(
+                "ws://127.0.0.1:8000/ws"
+            );
+
+            socket.binaryType =
+                "arraybuffer";
+
+
+            socket.onopen = () => {
+
+                document
+                    .getElementById(
+                        "status"
+                    ).innerText =
+                    "Connected";
+
+                console.log(
+                    "Connected"
+                );
+            };
+
+
+            socket.onmessage =
+                async (
+                    event
+                ) => {
+
+                    // TEXT MESSAGE
+                    if (
+                        typeof event.data
+                        === "string"
+                    ) {
+
+                        const botText =
+                            event.data;
+
+                        document
+                            .getElementById(
+                                "status"
+                            ).innerText =
+                            "BOT: " +
+                            botText;
+
+                        console.log(
+                            "BOT:",
+                            botText
+                        );
+
+                        // Stop previous speech
+                        speechSynthesis.cancel();
+
+                        // Browser TTS
+                        currentSpeech =
+                            new SpeechSynthesisUtterance(
+                                botText
+                            );
+
+                        currentSpeech.rate =
+                            1.0;
+
+                        currentSpeech.pitch =
+                            1.0;
+
+                        speechSynthesis.speak(
+                            currentSpeech
+                        );
+
+                        return;
+                    }
+
+                    // OPTIONAL backend audio
+                    const blob =
+                        new Blob(
+                            [event.data],
+                            {
+                                type:
+                                "audio/mpeg"
+                            }
+                        );
+
+                    const audioURL =
+                        URL.createObjectURL(
+                            blob
+                        );
+
+                    const audio =
+                        new Audio(
+                            audioURL
+                        );
+
+                    await audio.play();
+                };
+        }
+
+
+        async function startMic() {
+
+            const stream =
+                await navigator
+                    .mediaDevices
+                    .getUserMedia({
+                        audio: true
+                    });
+
+            const audioContext =
+                new AudioContext({
+                    sampleRate: 16000
+                });
+
+            const source =
+                audioContext
+                    .createMediaStreamSource(
+                        stream
+                    );
+
+            const processor =
+                audioContext
+                    .createScriptProcessor(
+                        4096,
+                        1,
+                        1
+                    );
+
+            source.connect(
+                processor
+            );
+
+            processor.connect(
+                audioContext.destination
+            );
+
+            processor.onaudioprocess =
+                (
+                    event
+                ) => {
+
+                    // Barge-in
+                    speechSynthesis.cancel();
+
+                    if (
+                        socket.readyState
+                        !== WebSocket.OPEN
+                    ) {
+
+                        return;
+                    }
+
+                    const input =
+                        event.inputBuffer
+                            .getChannelData(
+                                0
+                            );
+
+                    const pcmData =
+                        new Int16Array(
+                            input.length
+                        );
+
+                    for (
+                        let i = 0;
+                        i < input.length;
+                        i++
+                    ) {
+
+                        pcmData[i] =
+                            input[i] * 32767;
+                    }
+
+                    socket.send(
+                        pcmData.buffer
+                    );
+
+                    console.log(
+                        "PCM audio sent"
+                    );
+                };
+        }
+
+    </script>
+
+</body>
+
+</html>

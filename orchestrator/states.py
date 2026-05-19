@@ -1,0 +1,28 @@
+# ---------------------------------
+# CALL LIFECYCLE STATES
+# ---------------------------------
+
+CALL_STARTED = "CALL_STARTED"
+
+ASKING_QUESTION = "ASKING_QUESTION"
+
+LISTENING = "LISTENING"
+
+PROCESSING = "PROCESSING"
+
+VERIFYING = "VERIFYING"
+
+COMPLETED = "COMPLETED"
+
+FAILED = "FAILED"
+
+
+# ---------------------------------
+# OPTIONAL FUTURE STATES
+# ---------------------------------
+
+BOT_SPEAKING = "BOT_SPEAKING"
+
+WAITING_FOR_USER = "WAITING_FOR_USER"
+
+HUMAN_HANDOFF = "HUMAN_HANDOFF"
